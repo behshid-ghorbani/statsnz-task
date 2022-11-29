@@ -1,0 +1,150 @@
+---
+title: "Data Analysis of Number of Deaths in New Zealand"
+output:
+  html_document: default
+  pdf_document: default
+date: "2022-11-27"
+---
+
+### Introduction
+This report is an analysis of the number of deaths in New Zealand using data from the COVID-19 Data Portal. This data set was chosen after looking through different indicators on the COVID-19 Data Portal. Looking under the "Health" indicator, the "Total deaths (all causes)" data set looked interesting as the graph showed an unusual peak in the weekly total number of deaths in winter 2022, compared to previous years.
+
+```{r eval=TRUE, echo=FALSE, include=FALSE}
+#install.packages("viridis")
+#install.packages("tidyverse")
+library(tidyverse)
+library(ggplot2)
+library(viridis)
+```
+
+### Data handling
+
+The data is available to download directly from the COVID-19 Data Portal application in Excel format, and from the Stats NZ open data API as a JSON file. After examining data from both sources I chose to use the Excel data. The Excel file consists of two sheets, "Metadata" and "Data". Data from the "Data" sheet was converted to CSV format and loaded into a DataFrame in R. 
+
+```{r eval=TRUE, echo=FALSE, include=FALSE}
+#Extract the data from .csv file
+deathData <- read.csv("death_age.csv")
+#Print the first 6 observations of the data
+head(deathData)
+```
+
+```{r echo=FALSE}
+#show the structure of "deathData" object
+str(deathData)
+```
+
+The DataFrame consists of 3095 observations with 10 variables. I changed the type of the two variables "Period" and "Label1" from type "chr" to "Date" and "factor" respectively, and renamed "Label1" to "Age".
+
+```{r eval=TRUE, echo=FALSE, include=FALSE}
+#change the variable types
+deathData$Period <- as.Date(deathData$Period)
+deathData$Label1 <- as.factor(deathData$Label1)
+#check the order of levels 
+levels(deathData$Label1)
+```
+To prepare the data for the visualisation I changed the order of the factor levels for the "Age" variable.
+```{r eval=TRUE, echo=FALSE, include=FALSE}
+#change the order of the levels
+deathData$Label1 <- factor((deathData$Label1), 
+                              levels = c("Total",
+                                         "80 and over",
+                                         "60 to 79",
+                                         "30 to 59",
+                                         "Under 30"))
+```
+
+```{r echo=FALSE}
+#check the order of levels 
+levels(deathData$Label1)
+```
+
+Next, I checked for any outliers in the data by plotting boxplots of number of deaths for each age group. The boxplots showed that there were outliers in each age group but they did not need to be removed as they appear to be part of the legitimate observations. I also performed missing value analysis to check for the presence of any NULL or missing values. There we no missing values found in the data set.
+
+```{r echo=FALSE, fig.width=10, fig.height=6}
+#plot a boxplot to check for the outliers
+boxplot(deathData$Value ~ deathData$Label1,
+        main = "Number of deaths in New Zealand by age",
+        xlab = "Age",
+        ylab = "Number of deaths")
+```
+
+```{r eval=TRUE, echo=FALSE, include=FALSE}
+#check for missing data
+  sum(is.na(deathData$Value))
+```
+### Data analysis and visualisation
+
+To begin the data analysis I selected the variables "Period", "Age" and "Value" and filtered the data from 2018 to have a closer look at the recent data.
+
+```{r eval=TRUE, echo=FALSE, include=FALSE}
+deathByAge <- deathData %>%
+    #select columns...
+    select(Period,Label1,Value) %>%
+    #filter rows...
+    filter(Period > "2018-01-01") %>%
+    #rename variable "Label1" to
+    rename(Age = Label1) %>%
+    group_by(Age)
+str(deathByAge)
+```
+
+I plotted a simple graph showing the total weekly number of deaths in New Zealand (week ending on Sunday). To make the graph more readable, I chose to show the x-axis label for the "Period" six monthly, displaying only the name of the month and the year.
+
+```{r echo=FALSE, fig.width=10,fig.height=4}
+#graph "Total number of weekly deaths in NZ"
+deathByAge %>%
+      filter(Age == "Total") %>%
+      ggplot(aes(x=Period,
+                 y=Value))+
+      geom_line(colour='red')+
+      #show the labels 6 monthly
+      scale_x_date(date_breaks = "6 months",
+                   date_labels = "%b-%y")+
+      #labels
+      labs(x = "Period",
+           y = "Deaths per week",
+           title = "Weekly deaths in New Zealand")+
+      theme_minimal()
+```
+
+\newpage
+### Findings
+As it can be observed in above graph, the total number of weekly deaths shows regular peaks during each winter, with a strong peak in the 3rd quarter of 2022 and a flattened peak in the winter of 2020. To investigate further, I plotted a graph of the weekly number of deaths for each age group shown by different colours. 
+
+```{r echo=FALSE, fig.width=10,fig.height=4}
+#graph "weekly deaths by age"
+deathByAge %>%
+      ggplot(aes(x=Period,
+                 y=Value,
+                 colour=Age))+
+      geom_line(linewidth=0.7)+
+      scale_x_date(date_breaks = "6 months",
+                   date_labels = "%b-%y")+
+      labs(x = "Period",
+           y = "Deaths per week",
+           title = "Weekly deaths by age")+
+      theme_minimal()
+```
+
+Interestingly, we can observe that there is not a large variation in the number of deaths in the age groups "under 30" and "30 to 59" and even "60 to 79". The graph shows the increase in the total number of weekly deaths in the third quarter of 2022 results from the increased number of weekly deaths in the age group 80 and over. We can see this more clearly in an area chart.
+
+```{r echo=FALSE, fig.width=10,fig.height=4}
+#area chart "weekly deaths by age"
+deathByAge %>%
+      filter(Age != "Total") %>%
+      ggplot(aes(x=Period,
+                 y=Value,
+                 fill=Age))+
+      geom_area(alpha=0.6 , linewidth=0.5, color="white")+
+      scale_fill_viridis(discrete = T)+
+      scale_x_date(date_breaks = "6 months",
+                   date_labels = "%b-%y")+
+      labs(x = "Period",
+           y = "Deaths per week",
+           title = "Weekly deaths by age")+
+      theme_minimal()
+```
+
+### Improvements and suggestions
+
+To further investigate the results of the increased number of deaths for 80 and over age group, I would like to include an analysis of the number of weekly COVID-19 related deaths by age.
